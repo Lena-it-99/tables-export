@@ -2,9 +2,9 @@
 require 'vendor/autoload.php';
 
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
-use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PhpOffice\PhpSpreadsheet\Writer\Csv;
 use PhpOffice\PhpSpreadsheet\IOFactory;
-use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
+use PhpOffice\PhpSpreadsheet\Shared\Date;
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['file'])) {
     $file = $_FILES['file']['tmp_name'];
@@ -23,8 +23,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['file'])) {
     // Column titles
     $titles = [
         'الرقم', 'العميل', 'الصنف', 'المادة', 'الكمية', 'التاريخ', 'الباركود',
-        'جوال العميل', 'ارتفاع الظهرية', 'ارتفاع البوكس', 'ارتفاع الأرجل', 
-        'ارتفاع المرتبة', 'الأكواب الإضافية', 'الألوان', 'ملاحظات اضافية', 
+        'جوال العميل', 'ارتفاع الظهرية', 'ارتفاع البوكس', 'ارتفاع الارجل', 
+        'ارتفاع المرتبة', 'الاكواب الاضافية', 'الالوان', 'ملاحظات إضافية', 
         'المستخدم', 'السعر الإجمالي', 'الباقي', 'موعد التسليم المقترح', 
         'المدينة', 'المنطقة', 'المدينة-الحي', 'حالة الطلب', 'العنوان', 
         'معرف القطعة', 'المصدر', 'نوع التوصيل'
@@ -50,27 +50,30 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['file'])) {
         foreach ($mapping as $newCol => $oldCol) {
             if ($oldCol !== null) {
                 $value = $sheet->getCellByColumnAndRow($oldCol, $row)->getValue();
-                $newSheet->setCellValueByColumnAndRow($newCol, $row, $value);
-
-                // Set date format for columns 6 and 19
                 if ($newCol == 6 || $newCol == 19) {
-                    $newSheet->getStyleByColumnAndRow($newCol, $row)->getNumberFormat()->setFormatCode(NumberFormat::FORMAT_DATE_DDMMYYYY);
+                    if (Date::isDateTime($sheet->getCellByColumnAndRow($oldCol, $row))) {
+                        $value = Date::excelToDateTimeObject($value);
+                        $newSheet->setCellValueByColumnAndRow($newCol, $row, $value->format('d/m/Y'));
+                        $newSheet->getStyleByColumnAndRow($newCol, $row)->getNumberFormat()->setFormatCode('dd/mm/yyyy');
+                    }
+                } else {
+                    $newSheet->setCellValueByColumnAndRow($newCol, $row, $value);
                 }
             }
         }
     }
 
-    // Set column widths to fit content
-    $newSheet->getColumnDimension('F')->setAutoSize(true); // Column 6 (F)
-    $newSheet->getColumnDimension('S')->setAutoSize(true); // Column 19 (S)
-
-    // Save the new file
-    $outputDir = 'C:\\Users\\lena9\\OneDrive\\Desktop\\InHouse\\برنامج تحويل الجداول\\exports';
-    if (!file_exists($outputDir)) {
-        mkdir($outputDir, 0777, true);
+    // Adjust column width to fit the content
+    foreach (range('A', $newSheet->getHighestColumn()) as $columnID) {
+        $newSheet->getColumnDimension($columnID)->setWidth(15); // Set a fixed width for all columns
     }
-    $outputFile = $outputDir . '\\new_file.xlsx';
-    $writer = new Xlsx($newSpreadsheet);
+
+    $newSheet->getColumnDimension('F')->setWidth(20); // Set a specific width for column 6
+    $newSheet->getColumnDimension('S')->setWidth(20); // Set a specific width for column 19
+
+    // Save the new file as CSV
+    $writer = new Csv($newSpreadsheet);
+    $outputFile = 'C:/Users/lena9/OneDrive/Desktop/InHouse/export_program/exports/new_file.csv';
     $writer->save($outputFile);
 
     // Download the new file
